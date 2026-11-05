@@ -1,0 +1,11 @@
+.git
+.idea
+.venv
+.venv.broken
+__pycache__
+*.pyc
+.env
+backups
+logs
+upload
+tests

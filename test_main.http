@@ -1,0 +1,22 @@
+@baseUrl = http://127.0.0.1:8000
+@token = paste-access-token-here
+
+### 健康检查
+GET {{baseUrl}}/health
+
+### 管理员登录
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "replace-with-admin-password"
+}
+
+### 学生列表（需要管理员令牌）
+GET {{baseUrl}}/student/list
+Authorization: Bearer {{token}}
+
+### 查看当前用户
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
