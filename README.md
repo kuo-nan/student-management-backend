@@ -95,6 +95,12 @@ docker compose up --build
 
 容器启动时会自动执行 `alembic upgrade head`。生产部署前必须修改 `MYSQL_ROOT_PASSWORD` 和 `JWT_SECRET`。
 
+首次启动后可初始化管理员：
+
+```bash
+docker compose exec app python -m scripts.seed
+```
+
 ## 测试与代码检查
 
 ```bash
