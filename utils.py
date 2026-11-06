@@ -116,13 +116,12 @@ def enforce_login_rate_limit(request: Request, limit: int = 10) -> None:
     global _redis_retry_after
     if time.monotonic() < _redis_retry_after:
         return
-
     client_ip = request.client.host if request.client else "unknown"
     rate_key = f"rate:login:{client_ip}"
     try:
         count = redis_client.incr(rate_key)
         if count == 1:
-            redis_client.expire(rate_key, 60)
+            redis_client.expire(rate_key, 60)#60秒后删除计数
     except RedisError:
         _redis_retry_after = time.monotonic() + 30
         logger.warning("Redis 不可用，登录限流临时降级")
