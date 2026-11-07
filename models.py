@@ -41,7 +41,7 @@ teacher_dept = Table(
 class Dept(Base):
     __tablename__ = "dept"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     dept_name = Column(String(20), nullable=False)
     students = relationship("Student", back_populates="dept")
     teachers = relationship("Teacher", secondary=teacher_dept, back_populates="depts")
@@ -50,7 +50,7 @@ class Dept(Base):
 class Student(Base):
     __tablename__ = "student"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("user.id"), unique=True)
     name = Column(String(20), nullable=False)
     age = Column(Integer, default=0)
@@ -70,7 +70,7 @@ class Student(Base):
 class Course(Base):
     __tablename__ = "course"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     course_name = Column(String(20), nullable=False)
     credits = Column(Integer, nullable=False)
     students = relationship(
@@ -86,7 +86,7 @@ class Course(Base):
 class Teacher(Base):
     __tablename__ = "teacher"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     name = Column(String(20), nullable=False)
     title = Column(String(20), nullable=False)
     courses = relationship("Course", secondary=teacher_course, back_populates="teachers")
@@ -96,7 +96,7 @@ class Teacher(Base):
 class User(Base):
     __tablename__ = "user"
 
-    id = Column(Integer, primary_key=True, index=True, comment="用户ID")
+    id = Column(Integer, primary_key=True, comment="用户ID")
     username = Column(String(20), unique=True, nullable=False, comment="用户名")
     password_hash = Column(String(255), nullable=False, comment="加密后的密码")
     is_active = Column(Boolean, default=True, nullable=False, comment="是否启用")
@@ -138,7 +138,7 @@ class Exam(Base):
     __tablename__ = "exam"
     __table_args__ = (UniqueConstraint("name", name="uk_exam_name"),)
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True, comment="考试ID")
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="考试ID")
     name = Column(String(50), nullable=False, comment="考试名称")
     exam_time = Column(DateTime, nullable=False, comment="考试时间")
     remark = Column(String(255), comment="备注")
@@ -174,7 +174,7 @@ class ExamScore(Base):
 class OperationLog(Base):
     __tablename__ = "operation_log"
 
-    id = Column(Integer, primary_key=True, index=True, comment="日志ID")
+    id = Column(Integer, primary_key=True, comment="日志ID")
     user_id = Column(Integer, nullable=False, comment="操作人ID")
     username = Column(String(20), nullable=False, comment="操作人用户名")
     module = Column(String(30), nullable=False, comment="操作模块")
