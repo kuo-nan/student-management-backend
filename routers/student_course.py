@@ -134,7 +134,7 @@ def get_course_students(
             Student.id,
             Student.name,
             Student.age,
-            Student.score,
+            Student.personal_score,
             Student.dept_id,
             Dept.dept_name,
             student_course.c.score.label("course_score"),

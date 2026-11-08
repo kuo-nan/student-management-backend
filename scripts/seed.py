@@ -58,7 +58,7 @@ def main() -> None:
                 student_no=1,
                 name="张三",
                 age=20,
-                score=88,
+                personal_score=88,
                 dept_id=dept.id,
             )
             demo_user = User(

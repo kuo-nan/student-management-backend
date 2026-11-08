@@ -199,7 +199,7 @@ def get_students_by_teacher(
             Student.id,
             Student.name,
             Student.age,
-            Student.score,
+            Student.personal_score,
             Student.dept_id,
             Dept.dept_name,
         )
@@ -230,7 +230,7 @@ def get_students_by_teacher_dept(
             Student.id,
             Student.name,
             Student.age,
-            Student.score,
+            Student.personal_score,
             Student.dept_id,
             Dept.dept_name,
         )

@@ -54,7 +54,7 @@ class Student(Base):
     user_id = Column(Integer, ForeignKey("user.id"), unique=True)
     name = Column(String(20), nullable=False)
     age = Column(Integer, default=0)
-    score = Column(Integer, nullable=False)
+    personal_score = Column(Integer, nullable=False, comment="学生个人评分，与课程和考试无关")
     dept_id = Column(Integer, ForeignKey("dept.id"))
     dept = relationship("Dept", back_populates="students")
     user = relationship("User", back_populates="student", uselist=False)

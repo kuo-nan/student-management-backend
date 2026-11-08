@@ -207,7 +207,7 @@ def get_student_courses(
             "id": student.id,
             "name": student.name,
             "age": student.age,
-            "score": student.score,
+            "personal_score": student.personal_score,
             "dept_id": student.dept_id,
             "dept_name": student.dept.dept_name if student.dept else None,
             "courses": student.courses,
@@ -288,7 +288,7 @@ def import_student_excel(
         if all(cell is None for cell in row):
             continue
         try:
-            student_no, name, age, score, dept_id = row[:5]
+            student_no, name, age, personal_score, dept_id = row[:5]
             student_no = int(student_no)
             name = str(name).strip() if name is not None else ""
             if not student_no:
@@ -303,16 +303,22 @@ def import_student_excel(
             if not name:
                 raise ValueError("姓名不能为空")
             age = int(age)
-            score = int(score)
+            personal_score = int(personal_score)
             dept_id = int(dept_id)
             if not 1 <= age <= 150:
                 raise ValueError("年龄必须在 1-150 之间")
-            if not 0 <= score <= 100:
-                raise ValueError("成绩必须在 0-100 之间")
+            if not 0 <= personal_score <= 100:
+                raise ValueError("个人评分必须在 0-100 之间")
             if dept_id not in dept_ids:
                 raise ValueError("班级ID不存在")
             student_list.append(
-                Student(student_no=student_no,name=name, age=age, score=score, dept_id=dept_id)
+                Student(
+                    student_no=student_no,
+                    name=name,
+                    age=age,
+                    personal_score=personal_score,
+                    dept_id=dept_id,
+                )
             )
             imported_student_nos.add(student_no)
         except (TypeError, ValueError) as exc:

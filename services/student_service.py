@@ -21,7 +21,7 @@ def get_student_page(
             Student.id,
             Student.name,
             Student.age,
-            Student.score,
+            Student.personal_score,
             Student.dept_id,
             Dept.dept_name,
         )

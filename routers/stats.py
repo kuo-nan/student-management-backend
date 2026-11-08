@@ -54,7 +54,9 @@ def dept_statistics(
         select(
             Dept.dept_name,
             func.count(Student.id).label("student_count"),
-            func.coalesce(func.avg(Student.score), 0).label("avg_score"),
+            func.coalesce(func.avg(Student.personal_score), 0).label(
+                "avg_personal_score"
+            ),
         )
         .select_from(Dept)
         .join(Student, Student.dept_id == Dept.id, isouter=True)

@@ -38,7 +38,15 @@ def mysql_session_factory():
 
 def test_concurrent_leave_audit_only_allows_one_winner(mysql_session_factory):
     with mysql_session_factory() as db:
-        db.add(Student(student_no=1,id=1, name="并发测试学生", age=20, score=90))
+        db.add(
+            Student(
+                student_no=1,
+                id=1,
+                name="并发测试学生",
+                age=20,
+                personal_score=90,
+            )
+        )
         db.add(
             StudentLeave(
                 id=1,
@@ -107,7 +115,7 @@ def test_concurrent_student_creation_only_allows_one_winner(
                         student_no=20269999,
                         name=name,
                         age=20,
-                        score=90,
+                        personal_score=90,
                         dept_id=1,
                     ),
                 )

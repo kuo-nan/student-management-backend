@@ -12,7 +12,7 @@ class StudentCreate(BaseModel):
     student_no:int=Field(ge=1, description="学号")
     name: str = Field(min_length=1, max_length=20, description="学生姓名")
     age: int = Field(ge=1, le=150, description="年龄")
-    score: int = Field(ge=0, le=100, description="成绩")
+    personal_score: int = Field(ge=0, le=100, description="学生个人评分")
     dept_id: int = Field(ge=1, description="班级ID")
 
 
@@ -22,7 +22,7 @@ StudentCrate = StudentCreate
 class StudentUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=20)
     age: Optional[int] = Field(default=None, ge=1, le=150)
-    score: Optional[int] = Field(default=None, ge=0, le=100)
+    personal_score: Optional[int] = Field(default=None, ge=0, le=100)
     dept_id: Optional[int] = Field(default=None, ge=1)
 
 
@@ -31,7 +31,7 @@ class StudentBase(ORMModel):
     id: int
     name: str = Field(min_length=1, max_length=20)
     age: int
-    score: int = Field(ge=0, le=100)
+    personal_score: int = Field(ge=0, le=100)
     dept_id: int
 
 
@@ -88,7 +88,7 @@ class StudentCourseStatResp(StudentResp):
 class DeptStatResp(ORMModel):
     dept_name: str
     student_count: int = Field(ge=0)
-    avg_score: float
+    avg_personal_score: float
 
 
 class LeaveCreate(BaseModel):

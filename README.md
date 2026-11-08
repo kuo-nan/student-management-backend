@@ -137,9 +137,16 @@ pytest tests/test_mysql_concurrency.py
 └── docker-compose.yml
 ```
 
+## 成绩定义
+
+- `students.personal_score`：学生个人评分，与课程和考试无关。
+- `student_course.score`：学生某门课程的最终课程成绩。
+- `exam_score.exam_score`：某次考试、某门课程的单次考试成绩。
+
+课程成绩和考试成绩暂时不会自动转换为学生个人评分。
+
 ## 已知限制与后续计划
 
-- 当前同时保留课程平时成绩 `student_course.score` 和考试成绩 `ExamScore.exam_score`，后续需要明确最终成绩计算规则。
-- 学生表目前仍使用自增 ID 作为主键，尚未引入独立的学号字段。
+- 课程最终成绩与考试明细之间的权重和换算规则尚未实现。
 - 文件当前保存到本地磁盘，生产环境应迁移到对象存储。
 - 在线演示地址和完整接口截图将在部署完成后补充。

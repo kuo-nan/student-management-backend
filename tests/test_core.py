@@ -44,12 +44,12 @@ def test_update_student_does_not_recurse(
 ):
     response = client.put(
         "/student/update_student/1",
-        json={"score": 91},
+        json={"personal_score": 91},
         headers=admin_headers,
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["data"]["score"] == 91
+    assert response.json()["data"]["personal_score"] == 91
 
 
 def test_student_number_is_unique_and_filterable(
@@ -60,7 +60,7 @@ def test_student_number_is_unique_and_filterable(
         "student_no": 20260001,
         "name": "王五",
         "age": 21,
-        "score": 90,
+        "personal_score": 90,
         "dept_id": 1,
     }
     created = client.post(
@@ -93,7 +93,7 @@ def test_student_excel_import_reports_duplicate_student_numbers(
 ):
     workbook = openpyxl.Workbook()
     sheet = workbook.active
-    sheet.append(["学号", "姓名", "年龄", "成绩", "班级ID"])
+    sheet.append(["学号", "姓名", "年龄", "个人评分", "班级ID"])
     sheet.append([20261001, "Excel学生A", 20, 91, 1])
     sheet.append([20261001, "文件内重复", 20, 90, 1])
     sheet.append([1, "数据库已有学号", 20, 89, 1])
