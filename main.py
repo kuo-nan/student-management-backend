@@ -23,16 +23,28 @@ upload_dir = Path("upload")
 upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/upload", StaticFiles(directory=upload_dir), name="upload")
 
+
+#==============老师业务==================
 app.include_router(teacher.router)
+#==============学生业务==================
 app.include_router(student.router)
+#==============课程业务==================
 app.include_router(course.router)
+#==============统计业务==================
 app.include_router(stats.router)
+#==============班级业务==================
 app.include_router(dept.router)
+#==============选课业务==================
 app.include_router(student_course.router)
+#==============考试业务==================
 app.include_router(exam.router)
+#==============请假业务==================
 app.include_router(leave.router)
+#==============登录业务==================
 app.include_router(auth_router)
+#==============文件业务==================
 app.include_router(file.router)
+#==============日志业务==================
 app.include_router(log.router)
 
 
