@@ -1,43 +1,67 @@
 services:
   mysql:
     image: mysql:8.0
+    restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-student_root_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       MYSQL_DATABASE: student1
-    ports:
-      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-student_root_password}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   app:
     build: .
+    restart: unless-stopped
+    init: true
     environment:
       DEBUG: "false"
       DB_HOST: mysql
       DB_PORT: "3306"
       DB_USER: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-student_root_password}
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       DB_NAME: student1
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      JWT_SECRET: ${JWT_SECRET:-replace-this-before-deployment}
+      REDIS_DB: "0"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JWT_EXPIRES_MINUTES: ${JWT_EXPIRES_MINUTES:-1440}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     volumes:
       - upload_data:/app/upload
       - log_data:/app/logs
@@ -46,8 +70,26 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mysql_data:
+  redis_data:
   upload_data:
   log_data:
