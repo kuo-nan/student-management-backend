@@ -1,4 +1,5 @@
-from sqlalchemy import select
+
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from constants import LeaveStatus
@@ -57,22 +58,24 @@ def get_all_leaves(
 
 
 def audit_leave(db: Session, leave_id: int, data: LeaveAudit):
-    leave = db.get(StudentLeave, leave_id)
-    if not leave:
-        raise ValueError("请假记录不存在")
-    if leave.status != LeaveStatus.PENDING.value:
-        raise ValueError("该请假已审批，不可重复操作")
-    if data.status not in {
-        LeaveStatus.APPROVED.value,
-        LeaveStatus.REJECTED.value,
-    }:
-        raise ValueError("审批状态非法")
 
-    leave.status = data.status
-    leave.audit_remark = data.audit_remark
+    result=db.execute(
+        update(StudentLeave)
+        .where(
+            StudentLeave.id==leave_id,
+            StudentLeave.status=="pending",
+        )
+        .values(status=data.status,
+                audit_remark=data.audit_remark
+                )
+    )
+    if result.rowcount==0:
+        db.rollback()
+        raise ValueError("请假不存在或已经审批")
+
+
     db.commit()
-    db.refresh(leave)
-    return leave
+    return db.get(StudentLeave,leave_id)
 
 
 def cancel_leave(db: Session, leave_id: int, student_id: int):

@@ -88,12 +88,80 @@ def test_student_leave_uses_linked_student_identity(
         },
         headers=student_headers,
     )
+    leave_id = response.json()["data"]["id"]
     records = client.get("/leave/my", headers=student_headers)
 
     assert response.status_code == 200, response.text
     assert response.json()["data"]["student_id"] == 1
     assert records.status_code == 200, records.text
-    assert records.json()["data"]["total"] == 1
+    assert any(item["id"] == leave_id for item in records.json()["data"]["list"])
+
+
+def test_admin_can_approve_leave_with_remark(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    student_headers: dict[str, str],
+):
+    leave_id = _create_leave(client, student_headers, "审批通过测试")
+
+    response = client.put(
+        f"/leave/{leave_id}/audit",
+        json={"status": "approved", "audit_remark": "材料完整，同意请假"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["status"] == "approved"
+    assert response.json()["data"]["audit_remark"] == "材料完整，同意请假"
+
+
+def test_admin_can_reject_leave(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    student_headers: dict[str, str],
+):
+    leave_id = _create_leave(client, student_headers, "审批驳回测试")
+
+    response = client.put(
+        f"/leave/{leave_id}/audit",
+        json={"status": "rejected", "audit_remark": "请假理由不充分"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["status"] == "rejected"
+    assert response.json()["data"]["audit_remark"] == "请假理由不充分"
+
+
+def test_leave_cannot_be_audited_twice(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    student_headers: dict[str, str],
+):
+    leave_id = _create_leave(client, student_headers, "重复审批测试")
+    first = client.put(
+        f"/leave/{leave_id}/audit",
+        json={"status": "approved", "audit_remark": "同意"},
+        headers=admin_headers,
+    )
+    second = client.put(
+        f"/leave/{leave_id}/audit",
+        json={"status": "rejected", "audit_remark": "试图覆盖"},
+        headers=admin_headers,
+    )
+    records = client.get(
+        "/leave/list",
+        params={"student_id": 1, "page_size": 100},
+        headers=admin_headers,
+    )
+    saved = next(
+        item for item in records.json()["data"]["list"] if item["id"] == leave_id
+    )
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 400
+    assert saved["status"] == "approved"
+    assert saved["audit_remark"] == "同意"
 
 
 def test_score_requires_course_enrollment(
@@ -149,3 +217,22 @@ def test_admin_can_create_linked_student_account(
 
     assert response.status_code == 200, response.text
     assert response.json()["data"]["role"] == "student"
+
+
+def _create_leave(
+    client: TestClient,
+    student_headers: dict[str, str],
+    reason: str,
+) -> int:
+    response = client.post(
+        "/leave",
+        json={
+            "leave_type": "事假",
+            "start_time": "2026-12-10T08:00:00",
+            "end_time": "2026-12-11T18:00:00",
+            "reason": reason,
+        },
+        headers=student_headers,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["data"]["id"]
