@@ -2,6 +2,9 @@
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+markers = [
+    "mysql: integration tests that require a dedicated MySQL database",
+]
 
 [tool.coverage.run]
 branch = true

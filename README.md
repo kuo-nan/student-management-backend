@@ -110,6 +110,15 @@ ruff check .
 
 当前测试覆盖健康检查、未登录拦截、角色权限、学生列表联表返回、学生信息修改、考试权限与重名校验、学生身份绑定、请假归属、成绩录入选课校验和学生账号创建。
 
+真实 MySQL 并发测试需要一个独立的临时数据库。测试会删除并重建目标库中的数据表，数据库名必须包含 `test` 或 `verify`：
+
+```powershell
+$env:MYSQL_TEST_DATABASE_URL = "mysql+pymysql://root:password@127.0.0.1:3306/fastapi_concurrency_test?charset=utf8mb4"
+pytest tests/test_mysql_concurrency.py
+```
+
+不要把 `MYSQL_TEST_DATABASE_URL` 指向 `student1`。
+
 ## 项目结构
 
 ```text
