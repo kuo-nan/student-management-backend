@@ -9,6 +9,7 @@ class ORMModel(BaseModel):
 
 
 class StudentCreate(BaseModel):
+    student_no:int=Field(ge=1, description="学号")
     name: str = Field(min_length=1, max_length=20, description="学生姓名")
     age: int = Field(ge=1, le=150, description="年龄")
     score: int = Field(ge=0, le=100, description="成绩")
@@ -26,6 +27,7 @@ class StudentUpdate(BaseModel):
 
 
 class StudentBase(ORMModel):
+    student_no:int=Field(ge=1, description="学号")
     id: int
     name: str = Field(min_length=1, max_length=20)
     age: int

@@ -49,7 +49,7 @@ class Dept(Base):
 
 class Student(Base):
     __tablename__ = "student"
-
+    student_no=Column(Integer,nullable=False,unique=True)
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("user.id"), unique=True)
     name = Column(String(20), nullable=False)

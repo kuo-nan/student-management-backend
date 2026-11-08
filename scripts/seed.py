@@ -55,6 +55,7 @@ def main() -> None:
         demo_user = db.scalar(select(User).where(User.username == "student"))
         if not demo_user:
             student = Student(
+                student_no=1,
                 name="张三",
                 age=20,
                 score=88,

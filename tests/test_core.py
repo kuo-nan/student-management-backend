@@ -1,3 +1,6 @@
+from io import BytesIO
+
+import openpyxl
 from fastapi.testclient import TestClient
 
 
@@ -47,6 +50,73 @@ def test_update_student_does_not_recurse(
 
     assert response.status_code == 200, response.text
     assert response.json()["data"]["score"] == 91
+
+
+def test_student_number_is_unique_and_filterable(
+    client: TestClient,
+    admin_headers: dict[str, str],
+):
+    payload = {
+        "student_no": 20260001,
+        "name": "王五",
+        "age": 21,
+        "score": 90,
+        "dept_id": 1,
+    }
+    created = client.post(
+        "/student/add_student",
+        json=payload,
+        headers=admin_headers,
+    )
+    duplicated = client.post(
+        "/student/add_student",
+        json=payload,
+        headers=admin_headers,
+    )
+    filtered = client.get(
+        "/student/list",
+        params={"student_no": 20260001},
+        headers=admin_headers,
+    )
+
+    assert created.status_code == 200, created.text
+    assert created.json()["data"]["student_no"] == 20260001
+    assert duplicated.status_code == 409
+    assert filtered.status_code == 200, filtered.text
+    assert filtered.json()["data"]["total"] == 1
+    assert filtered.json()["data"]["list"][0]["student_no"] == 20260001
+
+
+def test_student_excel_import_reports_duplicate_student_numbers(
+    client: TestClient,
+    admin_headers: dict[str, str],
+):
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(["学号", "姓名", "年龄", "成绩", "班级ID"])
+    sheet.append([20261001, "Excel学生A", 20, 91, 1])
+    sheet.append([20261001, "文件内重复", 20, 90, 1])
+    sheet.append([1, "数据库已有学号", 20, 89, 1])
+    output = BytesIO()
+    workbook.save(output)
+
+    response = client.post(
+        "/student/import_excel",
+        files={
+            "file": (
+                "students.xlsx",
+                output.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200, response.text
+    result = response.json()["data"]
+    assert result["success_count"] == 1
+    assert result["fail_count"] == 2
+    assert any("文件内重复" in item or "学号已存在" in item for item in result["fail_detail"])
 
 
 def test_student_cannot_create_exam(

@@ -34,13 +34,15 @@ router = APIRouter(prefix="/student", tags=["学生管理"])
     response_model=ResponseModel[PageResult[StudentResp]],
 )
 def get_students(
+    student_no: int | None = Query(default=None, ge=1),
     name: str | None = Query(default=None, max_length=20),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    return ResponseModel.success(data=get_student_page(db, page, page_size, name))
+    return ResponseModel.success(data=get_student_page
+    (db, page, page_size, student_no=student_no,name=name))
 
 
 @router.post(
@@ -53,12 +55,16 @@ def add_student(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
+    exists = db.scalar(select(Student.id).where(Student.student_no == student.student_no))
+    if exists is not None:
+        raise HTTPException(status_code=409, detail="学号已存在")
     if not db.get(Dept, student.dept_id):
         raise HTTPException(status_code=404, detail="班级不存在")
-    return ResponseModel.success(
-        data=create_student(db, student),
-        message="新增成功",
-    )
+    try:
+        created = create_student(db, student)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    return ResponseModel.success(data=created, message="新增成功")
 
 
 @router.delete(
@@ -197,6 +203,7 @@ def get_student_courses(
         raise HTTPException(status_code=404, detail="学生不存在")
     return ResponseModel.success(
         data={
+            "student_no": student.student_no,
             "id": student.id,
             "name": student.name,
             "age": student.age,
@@ -267,6 +274,8 @@ def import_student_excel(
     success_count = 0
     fail_list: list[str] = []
     student_list: list[Student] = []
+    existing_student_nos = set(db.scalars(select(Student.student_no)).all())
+    imported_student_nos: set[int] = set()
     dept_ids = {
         value
         for value in db.scalars(select(Dept.id)).all()
@@ -279,8 +288,18 @@ def import_student_excel(
         if all(cell is None for cell in row):
             continue
         try:
-            name, age, score, dept_id = row[:4]
+            student_no, name, age, score, dept_id = row[:5]
+            student_no = int(student_no)
             name = str(name).strip() if name is not None else ""
+            if not student_no:
+                raise ValueError("学号不能为空")
+            if student_no<=0:
+                raise ValueError("学号必须大于0")
+            if (
+                student_no in existing_student_nos
+                or student_no in imported_student_nos
+            ):
+                raise ValueError("学号已存在或文件内重复")
             if not name:
                 raise ValueError("姓名不能为空")
             age = int(age)
@@ -293,8 +312,9 @@ def import_student_excel(
             if dept_id not in dept_ids:
                 raise ValueError("班级ID不存在")
             student_list.append(
-                Student(name=name, age=age, score=score, dept_id=dept_id)
+                Student(student_no=student_no,name=name, age=age, score=score, dept_id=dept_id)
             )
+            imported_student_nos.add(student_no)
         except (TypeError, ValueError) as exc:
             fail_list.append(f"第{row_idx}行：{exc}")
 
@@ -302,6 +322,12 @@ def import_student_excel(
         db.add_all(student_list)
         db.commit()
         success_count = len(student_list)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="导入期间发生学号冲突，请重新导入",
+        ) from None
     except Exception:
         db.rollback()
         raise

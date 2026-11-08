@@ -23,8 +23,9 @@ def database():
         dept = Dept(id=1, dept_name="计算机科学与技术")
         course = Course(id=1, course_name="Python 后端开发", credits=3)
         course_two = Course(id=2, course_name="数据库原理", credits=3)
-        student = Student(id=1, name="张三", age=20, score=88, dept_id=1)
+        student = Student(student_no=1,id=1, name="张三", age=20, score=88, dept_id=1)
         unlinked_student = Student(
+            student_no=2,
             id=2,
             name="李四",
             age=20,

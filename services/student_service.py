@@ -1,4 +1,6 @@
+
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models import Dept, Student
@@ -10,10 +12,12 @@ def get_student_page(
     db: Session,
     page: int,
     page_size: int,
+    student_no: str | None = None,
     name: str | None = None,
 ):
     query = (
         select(
+            Student.student_no,
             Student.id,
             Student.name,
             Student.age,
@@ -24,17 +28,25 @@ def get_student_page(
         .join(Dept, Student.dept_id == Dept.id, isouter=True)
         .order_by(Student.id.desc())
     )
+    if student_no:
+        query = query.where(Student.student_no == student_no)
     if name:
         query = query.where(Student.name.like(f"%{name}%"))
     return paginate(db, query, page, page_size)
 
 
 def create_student(db: Session, data: StudentCrate):
-    db_student = Student(**data.model_dump())
-    db.add(db_student)
-    db.commit()
-    db.refresh(db_student)
-    return db_student
+    student = Student(**data.model_dump())
+    db.add(student)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if "student_no" in str(exc.orig).lower():
+            raise ValueError("学号已存在") from None
+        raise
+    db.refresh(student)
+    return student
 
 
 def update_student_service(

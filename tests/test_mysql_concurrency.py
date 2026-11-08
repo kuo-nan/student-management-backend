@@ -4,14 +4,15 @@ from datetime import datetime
 from threading import Barrier
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from database import Base
-from models import Student, StudentLeave
-from schemas import LeaveAudit
+from models import Dept, Student, StudentLeave
+from schemas import LeaveAudit, StudentCreate
 from services.leave_service import audit_leave
+from services.student_service import create_student
 
 pytestmark = pytest.mark.mysql
 
@@ -37,7 +38,7 @@ def mysql_session_factory():
 
 def test_concurrent_leave_audit_only_allows_one_winner(mysql_session_factory):
     with mysql_session_factory() as db:
-        db.add(Student(id=1, name="并发测试学生", age=20, score=90))
+        db.add(Student(student_no=1,id=1, name="并发测试学生", age=20, score=90))
         db.add(
             StudentLeave(
                 id=1,
@@ -85,3 +86,44 @@ def test_concurrent_leave_audit_only_allows_one_winner(mysql_session_factory):
         assert saved is not None
         assert saved.status == winner[1]
         assert saved.audit_remark == f"管理员选择{winner[1]}"
+
+
+def test_concurrent_student_creation_only_allows_one_winner(
+    mysql_session_factory,
+):
+    with mysql_session_factory() as db:
+        db.add(Dept(id=1, dept_name="并发测试班级"))
+        db.commit()
+
+    barrier = Barrier(2)
+
+    def attempt(name: str) -> str:
+        with mysql_session_factory() as db:
+            barrier.wait(timeout=5)
+            try:
+                create_student(
+                    db,
+                    StudentCreate(
+                        student_no=20269999,
+                        name=name,
+                        age=20,
+                        score=90,
+                        dept_id=1,
+                    ),
+                )
+                return "success"
+            except ValueError:
+                return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(attempt, ["并发学生A", "并发学生B"]))
+
+    assert sorted(results) == ["conflict", "success"]
+
+    with mysql_session_factory() as db:
+        count = db.scalar(
+            select(func.count())
+            .select_from(Student)
+            .where(Student.student_no == 20269999)
+        )
+        assert count == 1

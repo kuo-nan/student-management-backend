@@ -195,6 +195,7 @@ def get_students_by_teacher(
 ):
     stmt = (
         select(
+            Student.student_no,
             Student.id,
             Student.name,
             Student.age,
@@ -225,6 +226,7 @@ def get_students_by_teacher_dept(
 ):
     stmt = (
         select(
+            Student.student_no,
             Student.id,
             Student.name,
             Student.age,
