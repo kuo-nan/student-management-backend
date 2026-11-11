@@ -27,11 +27,19 @@ from utils import get_current_admin, get_current_student
 
 router = APIRouter(prefix="/exam", tags=["考试与成绩"])
 
+# 新增、修改删除考试：
+# 考试管理只允许管理员操作。
+
+#成绩录入和成绩列表：
+# 管理员负责录入和查看所有学生成绩。
+# 当前模块把 Service 抛出的 ValueError 统一转换为 HTTP 400。
+# 如果后续需要更精确的状态码，可以引入 NotFound、Conflict 等业务异常类型。
 
 @router.post("", summary="新增考试", response_model=ResponseModel[ExamInfo])
 def add_exam(
     data: ExamCreate,
     db: Session = Depends(get_db),
+
     current_user: User = Depends(get_current_admin),
 ):
     try:
@@ -51,6 +59,7 @@ def exam_list(
     page_size: int = Query(default=10, ge=1, le=100),
     name: str | None = Query(default=None, max_length=50),
     db: Session = Depends(get_db),
+
     current_user: User = Depends(get_current_admin),
 ):
     return ResponseModel.success(data=get_exam_page(db, page, page_size, name))
@@ -65,6 +74,7 @@ def edit_exam(
     data: ExamUpdate,
     exam_id: int = Path(ge=1),
     db: Session = Depends(get_db),
+
     current_user: User = Depends(get_current_admin),
 ):
     try:
@@ -81,6 +91,7 @@ def edit_exam(
 def remove_exam(
     exam_id: int = Path(ge=1),
     db: Session = Depends(get_db),
+
     current_user: User = Depends(get_current_admin),
 ):
     try:
@@ -98,6 +109,7 @@ def remove_exam(
 def add_score(
     data: ScoreCreate,
     db: Session = Depends(get_db),
+
     current_user: User = Depends(get_current_admin),
 ):
     try:
@@ -158,6 +170,8 @@ def my_score_list(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db),
+    # 学生只能通过 Token 对应的 Student.id 查询自己的成绩，
+    # 无法通过修改请求参数查看其他学生。
     current_student: Student = Depends(get_current_student),
 ):
     page_data = get_my_score(db, current_student.id, page, page_size)

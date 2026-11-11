@@ -15,6 +15,11 @@ from sqlalchemy.orm import relationship
 from constants import LeaveStatus, UserRole
 from database import Base
 
+#================================数据库表==========================
+
+#====学生课程中间表====
+# Student与Course是多对多关系
+# 课程成绩保存在中间表的score字段中
 student_course = Table(
     "student_course",
     Base.metadata,
@@ -23,6 +28,7 @@ student_course = Table(
     Column("score", Integer, nullable=True, comment="课程成绩：0-100分"),
 )
 
+#====老师课程中间表====
 teacher_course = Table(
     "teacher_course",
     Base.metadata,
@@ -30,6 +36,7 @@ teacher_course = Table(
     Column("teacher_id", Integer, ForeignKey("teacher.id"), primary_key=True),
 )
 
+#====老师班级中间表====
 teacher_dept = Table(
     "teacher_dept",
     Base.metadata,
@@ -37,7 +44,7 @@ teacher_dept = Table(
     Column("dept_id", Integer, ForeignKey("dept.id"), primary_key=True),
 )
 
-
+#====班级表====
 class Dept(Base):
     __tablename__ = "dept"
 
@@ -46,12 +53,13 @@ class Dept(Base):
     students = relationship("Student", back_populates="dept")
     teachers = relationship("Teacher", secondary=teacher_dept, back_populates="depts")
 
-
+#====学生表====
+# Student与 User 是一对一关系
 class Student(Base):
     __tablename__ = "student"
     student_no=Column(Integer,nullable=False,unique=True)
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), unique=True)
+    user_id = Column(Integer, ForeignKey("user.id"), unique=True) #为空表示学生还没有登录账号
     name = Column(String(20), nullable=False)
     age = Column(Integer, default=0)
     personal_score = Column(Integer, nullable=False, comment="学生个人评分，与课程和考试无关")
@@ -66,7 +74,7 @@ class Student(Base):
         secondaryjoin="Course.id==student_course.c.course_id",
     )
 
-
+#====课程表====
 class Course(Base):
     __tablename__ = "course"
 
@@ -82,7 +90,7 @@ class Course(Base):
     )
     teachers = relationship("Teacher", secondary=teacher_course, back_populates="courses")
 
-
+#====老师表====
 class Teacher(Base):
     __tablename__ = "teacher"
 
@@ -92,7 +100,7 @@ class Teacher(Base):
     courses = relationship("Course", secondary=teacher_course, back_populates="teachers")
     depts = relationship("Dept", secondary=teacher_dept, back_populates="teachers")
 
-
+#====用户表====
 class User(Base):
     __tablename__ = "user"
 
@@ -108,7 +116,7 @@ class User(Base):
     )
     student = relationship("Student", back_populates="user", uselist=False)
 
-
+#====学生请假表====
 class StudentLeave(Base):
     __tablename__ = "student_leave"
 
@@ -133,7 +141,7 @@ class StudentLeave(Base):
     )
     student = relationship("Student", backref="leaves")
 
-
+#====考试表====
 class Exam(Base):
     __tablename__ = "exam"
     __table_args__ = (UniqueConstraint("name", name="uk_exam_name"),)
@@ -144,7 +152,7 @@ class Exam(Base):
     remark = Column(String(255), comment="备注")
     create_time = Column(DateTime, default=datetime.now, comment="创建时间")
 
-
+#====学生成绩表====
 class ExamScore(Base):
     __tablename__ = "exam_score"
     __table_args__ = (
@@ -170,7 +178,7 @@ class ExamScore(Base):
     student = relationship("Student", backref="exam_scores")
     course = relationship("Course", backref="exam_scores")
 
-
+#===操作日志表===
 class OperationLog(Base):
     __tablename__ = "operation_log"
 

@@ -1,3 +1,4 @@
+"""管理员查询数据库操作审计日志的只读接口"""
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,6 +25,8 @@ def get_log_list(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
+    #操作日志包含用户名和管理动作，只允许管理员查看
+    #该接口只读取operation_log表，不修改业务数据
     base_stmt = select(
         OperationLog.id,
         OperationLog.user_id,
@@ -32,7 +35,8 @@ def get_log_list(
         OperationLog.operation_type,
         OperationLog.description,
         OperationLog.created_at,
-    ).order_by(OperationLog.created_at.desc())
+    ).order_by(OperationLog.created_at.desc()) #按创建时间倒序，最新操作显示在前面
+    #用户名使用包含匹配，模块和操作类型使用精确匹配
     if username:
         base_stmt = base_stmt.where(OperationLog.username.like(f"%{username}%"))
     if module:

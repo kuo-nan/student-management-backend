@@ -1,3 +1,4 @@
+"""教师基本信息、教师课程和教师班级关联的管理接口"""
 from io import BytesIO
 
 import openpyxl
@@ -35,11 +36,14 @@ router = APIRouter(prefix="/teacher", tags=["教师管理"])
     response_model=ResponseModel[TeacherResp],
 )
 def add_teacher(
+    #TeacherCreate已通过Pydantic校验姓名和职称不能为空
     teacher: TeacherCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
     db_teacher = Teacher(**teacher.model_dump())
+    #add只创建Teacher，commit后才写入数据库和生成自增ID
+    #当前没有教师姓名唯一约束，因此允许同名教师
     db.add(db_teacher)
     db.commit()
     db.refresh(db_teacher)
@@ -69,7 +73,11 @@ def add_course_to_teacher(
     if not teacher or not course:
         raise HTTPException(status_code=404, detail="教师或课程不存在")
     if course in teacher.courses:
+        # teacher.courses通过teacher_course中间表读取教师负责的课程
+        #先检查是否已关联，方便返回409
         raise HTTPException(status_code=409, detail="教师已负责该课程")
+    #append后提交事务，SQLALchemy会向teacher_course插入一条记录
+    #联合主键(teacher_id,course_id)会阻止重复关联
     teacher.courses.append(course)
     db.commit()
     add_operation_log(
@@ -79,6 +87,8 @@ def add_course_to_teacher(
         "分配课程",
         f"教师 {teacher.name} 负责课程 {course.course_name}",
     )
+    # 当前接口没有捕获并发产生的 IntegrityError；
+    # 两个相同请求同时到达时，其中一个可能由全局处理器返回 500。
     return ResponseModel.success(message="分配成功")
 
 
@@ -92,9 +102,12 @@ def get_teacher_courses(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
+    #joinedload提前加载教师课程，避免序列化响应时产生N+1查询
     stmt = select(Teacher).options(joinedload(Teacher.courses))
     if name:
         stmt = stmt.where(Teacher.name.like(f"%{name}%"))
+    #joinedload集合关系可能产生重复Teacher行
+    #unique()让SQLAlchemy去实体去重
     teachers = db.scalars(stmt).unique().all()
     return ResponseModel.success(data=teachers)
 
@@ -116,8 +129,12 @@ def add_dept_to_teacher(
         raise HTTPException(status_code=404, detail="教师或班级不存在")
     if dept in teacher.depts:
         raise HTTPException(status_code=409, detail="教师已绑定该班级")
+    #teacher.depts通过teacher_dept中间表保存教师负责的班级
+    #联合主键（teacher_id,dept_id）防止同一关系重复写入
     teacher.depts.append(dept)
     db.commit()
+    # 当前接口没有捕获并发产生的 IntegrityError；
+    # 两个相同请求同时到达时，其中一个可能由全局处理器返回 500。
     return ResponseModel.success(message="绑定成功")
 
 
@@ -138,6 +155,8 @@ def drop_dept_from_teacher(
         raise HTTPException(status_code=404, detail="教师或班级不存在")
     if dept not in teacher.depts:
         raise HTTPException(status_code=400, detail="教师未绑定该班级")
+    #remove删除的是teacher_dept关联记录
+    #不会删除Teacher或Dept本身
     teacher.depts.remove(dept)
     db.commit()
     return ResponseModel.success(message="取消绑定成功")
@@ -156,6 +175,8 @@ def get_teacher_list(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
+    #只选择分页响应需要的字段
+    #name做包含匹配,title做精准匹配
     base_stmt = select(Teacher.id, Teacher.name, Teacher.title)
     if name:
         base_stmt = base_stmt.where(Teacher.name.like(f"%{name}%"))
@@ -177,6 +198,7 @@ def get_teachers_by_course(
     stmt = (
         select(Teacher)
         .distinct()
+        #通过teacher_course查询所有负责该课程的教师
         .join(teacher_course, Teacher.id == teacher_course.c.teacher_id)
         .where(teacher_course.c.course_id == course_id)
     )
@@ -207,6 +229,7 @@ def get_students_by_teacher(
         .join(student_course, Student.id == student_course.c.student_id)
         .join(Course, student_course.c.course_id == Course.id)
         .join(teacher_course, Course.id == teacher_course.c.course_id)
+        .join(Dept,Student.dept_id==Dept.id)
         .where(teacher_course.c.teacher_id == teacher_id)
     )
     result = [row._asdict() for row in db.execute(stmt).all()]
@@ -238,8 +261,11 @@ def get_students_by_teacher_dept(
         .join(student_course, Student.id == student_course.c.student_id)
         .join(Course, student_course.c.course_id == Course.id)
         .join(teacher_course, Course.id == teacher_course.c.course_id)
+        .join(Dept, Student.dept_id == Dept.id)
         .where(
             teacher_course.c.teacher_id == teacher_id,
+            #在”教师课程中的学生“基础上，再用Student.dept_id限定班级
+            #Dept只用于返回班级名称，学会筛选条件人使用Student.dept_id
             Student.dept_id == dept_id,
         )
     )
@@ -261,6 +287,7 @@ def filter_teacher_by_stats(
 ):
     stmt = (
         select(Teacher)
+        #外连接保留没有课程或没有学生的教师
         .join(teacher_course, Teacher.id == teacher_course.c.teacher_id, isouter=True)
         .join(Course, teacher_course.c.course_id == Course.id, isouter=True)
         .join(student_course, Course.id == student_course.c.course_id, isouter=True)
@@ -268,6 +295,8 @@ def filter_teacher_by_stats(
     if name:
         stmt = stmt.where(Teacher.name.like(f"%{name}%"))
     stmt = stmt.group_by(Teacher.id, Teacher.name, Teacher.title)
+    #按教师分组后,HAVING用于筛选聚合统计的结果
+    #DISTINCT防止教师教授多门课，课程包含多个学生时重复计数
     if min_course is not None:
         stmt = stmt.having(
             func.count(func.distinct(teacher_course.c.course_id)) >= min_course
@@ -293,9 +322,13 @@ def delete_teacher(
     if not teacher:
         raise HTTPException(status_code=404, detail="教师不存在")
     teacher_name = teacher.name
+    #当前模型没有配置自动级联删除
+    #因此先手动删除两个中间表中的关联记录
     db.execute(delete(teacher_course).where(teacher_course.c.teacher_id == teacher_id))
     db.execute(delete(teacher_dept).where(teacher_dept.c.teacher_id == teacher_id))
     db.delete(teacher)
+    #删除teacher_course、teacher_dept和Teacher共用一个数据
+    #最后统一commit,避免留下半删除状态
     db.commit()
     add_operation_log(
         db,
@@ -355,7 +388,11 @@ def batch_transfer_course(
             )
         ).all()
     )
+    #source_courses&targe_courses得到两位教师共同负责的课程
     duplicate_courses = source_courses & target_courses
+    #目标教师已经负责的课程不能直接UPDATE
+    #否则(teacher_id,course_id)会违反联合主键
+    #先删除重复关联，再把员教师剩余的课程全部转给目标教师
     if duplicate_courses:
         db.execute(
             delete(teacher_course).where(
@@ -368,6 +405,7 @@ def batch_transfer_course(
         .where(teacher_course.c.teacher_id == from_teacher_id)
         .values(teacher_id=new_teacher_id)
     )
+    #再次写操作再统一事务中提交，避免只转授一部分课程
     db.commit()
     add_operation_log(
         db,
@@ -385,6 +423,7 @@ def batch_transfer_course(
     response_model=ResponseModel,
 )
 def import_teacher_excel(
+    #教师Excel不经过TeacherCreate，因此需要手动检查姓名和职称
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
@@ -404,6 +443,7 @@ def import_teacher_excel(
         sheet.iter_rows(min_row=2, values_only=True),
         start=2,
     ):
+        # 空白行跳过，单行错误记录后后继续处理合法行
         if all(cell is None for cell in row):
             continue
         try:
@@ -416,9 +456,11 @@ def import_teacher_excel(
             teacher_list.append(Teacher(name=name, title=title))
         except (IndexError, TypeError, ValueError) as exc:
             fail_list.append(f"第{row_idx}行：{exc}")
-
+    #合法教师统一add_all，最后一次commit
     db.add_all(teacher_list)
     db.commit()
+    # Excel目前只检查非空，没有检查Teacher字段的最大长度
+    # JSON接口则由TeacherCreate自动检查
     add_operation_log(
         db,
         current_user,
@@ -433,3 +475,4 @@ def import_teacher_excel(
             "fail_detail": fail_list,
         }
     )
+    
