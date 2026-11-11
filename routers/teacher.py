@@ -4,6 +4,7 @@ from io import BytesIO
 import openpyxl
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
@@ -78,8 +79,12 @@ def add_course_to_teacher(
         raise HTTPException(status_code=409, detail="教师已负责该课程")
     #append后提交事务，SQLALchemy会向teacher_course插入一条记录
     #联合主键(teacher_id,course_id)会阻止重复关联
-    teacher.courses.append(course)
-    db.commit()
+    try:
+        teacher.courses.append(course)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="教师已负责该课程") from None
     add_operation_log(
         db,
         current_user,
@@ -87,8 +92,6 @@ def add_course_to_teacher(
         "分配课程",
         f"教师 {teacher.name} 负责课程 {course.course_name}",
     )
-    # 当前接口没有捕获并发产生的 IntegrityError；
-    # 两个相同请求同时到达时，其中一个可能由全局处理器返回 500。
     return ResponseModel.success(message="分配成功")
 
 
@@ -131,10 +134,12 @@ def add_dept_to_teacher(
         raise HTTPException(status_code=409, detail="教师已绑定该班级")
     #teacher.depts通过teacher_dept中间表保存教师负责的班级
     #联合主键（teacher_id,dept_id）防止同一关系重复写入
-    teacher.depts.append(dept)
-    db.commit()
-    # 当前接口没有捕获并发产生的 IntegrityError；
-    # 两个相同请求同时到达时，其中一个可能由全局处理器返回 500。
+    try:
+        teacher.depts.append(dept)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="教师已绑定该班级") from None
     return ResponseModel.success(message="绑定成功")
 
 

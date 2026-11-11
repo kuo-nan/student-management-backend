@@ -100,6 +100,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         401: ErrorCode.NOT_LOGIN,
         403: ErrorCode.PERMISSION_DENIED,
         404: ErrorCode.DATA_NOT_FOUND,
+        409: ErrorCode.DATA_CONFLICT,
         429: ErrorCode.TOO_MANY_REQUESTS,
     }
     business_code = (

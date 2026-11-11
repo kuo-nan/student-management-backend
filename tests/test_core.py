@@ -324,6 +324,43 @@ def test_disabled_account_returns_dedicated_business_code(
     assert existing_token.json()["code"] == 40301
 
 
+def test_teacher_assignment_conflicts_return_409_business_code(
+    client: TestClient,
+    admin_headers: dict[str, str],
+):
+    teacher = client.post(
+        "/teacher/add_teacher",
+        json={"name": "并发关系教师", "title": "讲师"},
+        headers=admin_headers,
+    )
+    assert teacher.status_code == 200, teacher.text
+    teacher_id = teacher.json()["data"]["id"]
+
+    first_course = client.post(
+        f"/teacher/teacher_with_course/{teacher_id}/1",
+        headers=admin_headers,
+    )
+    duplicate_course = client.post(
+        f"/teacher/teacher_with_course/{teacher_id}/1",
+        headers=admin_headers,
+    )
+    first_dept = client.post(
+        f"/teacher/teacher_with_dept/{teacher_id}/1",
+        headers=admin_headers,
+    )
+    duplicate_dept = client.post(
+        f"/teacher/teacher_with_dept/{teacher_id}/1",
+        headers=admin_headers,
+    )
+
+    assert first_course.status_code == 200, first_course.text
+    assert duplicate_course.status_code == 409
+    assert duplicate_course.json()["code"] == 40901
+    assert first_dept.status_code == 200, first_dept.text
+    assert duplicate_dept.status_code == 409
+    assert duplicate_dept.json()["code"] == 40901
+
+
 def _create_leave(
     client: TestClient,
     student_headers: dict[str, str],

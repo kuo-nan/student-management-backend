@@ -27,6 +27,8 @@ class ErrorCode:
     ACCOUNT_DISABLED = 40301
     #已登录但角色权限不足，例如学生访问管理员接口
     PERMISSION_DENIED = 40302
+    # 请求与当前数据状态冲突，例如重复关联或唯一键冲突，对应 HTTP 409
+    DATA_CONFLICT = 40901
     # 登录频率超过限制，对应HTTP 429
     TOO_MANY_REQUESTS = 42901
     # 要查询或操作的数不存在，对应HTTP 404
