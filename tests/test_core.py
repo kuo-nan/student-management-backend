@@ -235,6 +235,40 @@ def test_leave_cannot_be_audited_twice(
     assert saved["audit_remark"] == "同意"
 
 
+def test_student_can_cancel_pending_leave(
+    client: TestClient,
+    student_headers: dict[str, str],
+):
+    leave_id = _create_leave(client, student_headers, "撤销待审批请假")
+
+    cancelled = client.delete(f"/leave/{leave_id}", headers=student_headers)
+    records = client.get(
+        "/leave/my",
+        params={"page_size": 100},
+        headers=student_headers,
+    )
+
+    assert cancelled.status_code == 200, cancelled.text
+    assert all(item["id"] != leave_id for item in records.json()["data"]["list"])
+
+
+def test_approved_leave_cannot_be_cancelled(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    student_headers: dict[str, str],
+):
+    leave_id = _create_leave(client, student_headers, "审批后禁止撤销")
+    approved = client.put(
+        f"/leave/{leave_id}/audit",
+        json={"status": "approved", "audit_remark": "同意"},
+        headers=admin_headers,
+    )
+    cancelled = client.delete(f"/leave/{leave_id}", headers=student_headers)
+
+    assert approved.status_code == 200, approved.text
+    assert cancelled.status_code == 400
+
+
 def test_score_requires_course_enrollment(
     client: TestClient,
     admin_headers: dict[str, str],

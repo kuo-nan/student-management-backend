@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from database import Base
 from models import Dept, Student, StudentLeave
 from schemas import LeaveAudit, StudentCreate
-from services.leave_service import audit_leave
+from services.leave_service import audit_leave, cancel_leave
 from services.student_service import create_student
 
 pytestmark = pytest.mark.mysql
@@ -135,3 +135,73 @@ def test_concurrent_student_creation_only_allows_one_winner(
             .where(Student.student_no == 20269999)
         )
         assert count == 1
+
+
+def test_concurrent_leave_audit_and_cancel_only_allows_one_winner(
+    mysql_session_factory,
+):
+    with mysql_session_factory() as db:
+        db.add(
+            Student(
+                student_no=1001,
+                id=1001,
+                name="撤销并发测试学生",
+                age=20,
+                personal_score=90,
+            )
+        )
+        db.add(
+            StudentLeave(
+                id=1001,
+                student_id=1001,
+                leave_type="病假",
+                start_time=datetime(2026, 12, 2, 8, 0, 0),
+                end_time=datetime(2026, 12, 2, 18, 0, 0),
+                reason="撤销与审批并发测试",
+                status="pending",
+            )
+        )
+        db.commit()
+
+    barrier = Barrier(2)
+
+    def audit_attempt() -> str:
+        with mysql_session_factory() as db:
+            barrier.wait(timeout=5)
+            try:
+                audit_leave(
+                    db,
+                    leave_id=1001,
+                    data=LeaveAudit(
+                        status="approved",
+                        audit_remark="并发审批",
+                    ),
+                )
+                return "success"
+            except ValueError:
+                return "conflict"
+
+    def cancel_attempt() -> str:
+        with mysql_session_factory() as db:
+            barrier.wait(timeout=5)
+            try:
+                cancel_leave(db, leave_id=1001, student_id=1001)
+                return "success"
+            except ValueError:
+                return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        audit_future = executor.submit(audit_attempt)
+        cancel_future = executor.submit(cancel_attempt)
+        audit_result = audit_future.result(timeout=10)
+        cancel_result = cancel_future.result(timeout=10)
+
+    assert sorted([audit_result, cancel_result]) == ["conflict", "success"]
+
+    with mysql_session_factory() as db:
+        saved = db.get(StudentLeave, 1001)
+        if audit_result == "success":
+            assert saved is not None
+            assert saved.status == "approved"
+        else:
+            assert saved is None

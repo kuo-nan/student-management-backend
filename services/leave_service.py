@@ -1,5 +1,5 @@
 """处理请假申请、查询、原子审批和撤销的数据库逻辑"""
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from constants import LeaveStatus
@@ -89,18 +89,17 @@ def audit_leave(db: Session, leave_id: int, data: LeaveAudit):
     db.commit()
     return db.get(StudentLeave,leave_id)
 
-#请假记录必须存在
+# 原子撤销当前学生自己的待审批请假
 def cancel_leave(db: Session, leave_id: int, student_id: int):
-    leave = db.get(StudentLeave, leave_id)
-    if not leave:
-        raise ValueError("请假记录不存在")
-    #只能撤销当前登录学生自己的申请，防止修改URL中的ID操作他人请假记录
-    if leave.student_id != student_id:
-        raise ValueError("无权操作他人的请假记录")
-    #已审批的记录属于最终状态，不允许学生删除
-    if leave.status != LeaveStatus.PENDING.value:
-        raise ValueError("已审批的申请不可撤销")
-    #当前撤销采用“先查询、再删除”，与管理员并发之间仍有很小的竞争窗口
-    #更严格的做法是使用带student_id和status='pending'条件的DELETE
-    db.delete(leave)
+    # 将归属检查和状态检查放入同一条 DELETE，避免先查询后删除的并发窗口。
+    result = db.execute(
+        delete(StudentLeave).where(
+            StudentLeave.id == leave_id,
+            StudentLeave.student_id == student_id,
+            StudentLeave.status == LeaveStatus.PENDING.value,
+        )
+    )
+    if result.rowcount == 0:
+        db.rollback()
+        raise ValueError("请假记录不存在、无权撤销或已经审批")
     db.commit()
