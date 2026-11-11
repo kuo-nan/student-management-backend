@@ -23,7 +23,7 @@ class ErrorCode:
     #请求中没有有效JWT、JWT过期，或登录凭证错误
     NOT_LOGIN = 40101
     #账号被禁用专用业务码
-    #注意：当前全局异常处理把所有HTTP 403 都映射成了PERMISSION_DENIED
+    #由BusinessHTTPException显式携带，不会和普通权限不足混淆
     ACCOUNT_DISABLED = 40301
     #已登录但角色权限不足，例如学生访问管理员接口
     PERMISSION_DENIED = 40302

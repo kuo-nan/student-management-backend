@@ -24,6 +24,7 @@ def test_student_cannot_access_admin_endpoint(
     response = client.get("/student/list", headers=student_headers)
 
     assert response.status_code == 403
+    assert response.json()["code"] == 40302
 
 
 def test_admin_student_list_returns_joined_fields(
@@ -287,6 +288,40 @@ def test_admin_can_create_linked_student_account(
 
     assert response.status_code == 200, response.text
     assert response.json()["data"]["role"] == "student"
+
+
+def test_disabled_account_returns_dedicated_business_code(
+    client: TestClient,
+    admin_headers: dict[str, str],
+):
+    credentials = {
+        "username": "disabled_user",
+        "password": "disabled12345",
+    }
+    registered = client.post("/auth/register", json=credentials)
+    assert registered.status_code == 200, registered.text
+    user_id = registered.json()["data"]["id"]
+
+    login_before_disable = client.post("/auth/login", json=credentials)
+    assert login_before_disable.status_code == 200, login_before_disable.text
+    token = login_before_disable.json()["data"]["access_token"]
+
+    disabled = client.put(
+        f"/auth/user/toggle_active/{user_id}",
+        headers=admin_headers,
+    )
+    assert disabled.status_code == 200, disabled.text
+
+    login_after_disable = client.post("/auth/login", json=credentials)
+    existing_token = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert login_after_disable.status_code == 403
+    assert login_after_disable.json()["code"] == 40301
+    assert existing_token.status_code == 403
+    assert existing_token.json()["code"] == 40301
 
 
 def _create_leave(

@@ -11,8 +11,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from config import settings
-from constants import UserRole
+from constants import ErrorCode, UserRole
 from database import get_db, redis_client
+from exceptions import BusinessHTTPException
 from logger import logger
 from models import OperationLog, Student, User
 from schemas import PageResult
@@ -92,8 +93,9 @@ def get_current_user(
     if not user:
         raise credentials_exception
     if not user.is_active:
-        raise HTTPException(
+        raise BusinessHTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
+            code=ErrorCode.ACCOUNT_DISABLED,
             detail="账号已禁用，请联系管理员",
         )
     return user

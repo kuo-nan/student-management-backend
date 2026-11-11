@@ -4,8 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from constants import UserRole
+from constants import ErrorCode, UserRole
 from database import get_db
+from exceptions import BusinessHTTPException
 from models import Student, User
 from schemas import (
     ChangePasswordReq,
@@ -73,7 +74,11 @@ def login(
     if not db_user.is_active:
         #密码正确后还要检查账号是否启用
         # 被禁用账号不能继续获得新的 Token
-        raise HTTPException(status_code=403, detail="账号已禁用，请联系管理员")
+        raise BusinessHTTPException(
+            status_code=403,
+            code=ErrorCode.ACCOUNT_DISABLED,
+            detail="账号已禁用，请联系管理员",
+        )
     # sub 保存用户ID,jwt.decode后会总payload["sub"]中取回
     access_token = create_access_token(data={"sub": str(db_user.id)})
     return ResponseModel.success(
@@ -93,7 +98,11 @@ def oauth2_login(
     if not db_user or not verify_password(form_data.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     if not db_user.is_active:
-        raise HTTPException(status_code=403, detail="账号已禁用，请联系管理员")
+        raise BusinessHTTPException(
+            status_code=403,
+            code=ErrorCode.ACCOUNT_DISABLED,
+            detail="账号已禁用，请联系管理员",
+        )
     return {
         # sub 保存用户 ID:JWT的subject使用字符串更规范
         "access_token": create_access_token(data={"sub": str(db_user.id)}),

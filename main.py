@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 
 from config import settings
 from constants import ErrorCode
+from exceptions import BusinessHTTPException
 from logger import logger
 from routers import course, dept, exam, file, leave, log, stats, student, student_course, teacher
 from routers.auth import router as auth_router
@@ -101,11 +102,16 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         404: ErrorCode.DATA_NOT_FOUND,
         429: ErrorCode.TOO_MANY_REQUESTS,
     }
+    business_code = (
+        exc.code
+        if isinstance(exc, BusinessHTTPException)
+        else code_map.get(exc.status_code, ErrorCode.SYSTEM_ERROR)
+    )
     return JSONResponse(
         #根据HTTP状态码转换成项目同一业务码
         status_code=exc.status_code,
         content={
-            "code": code_map.get(exc.status_code, ErrorCode.SYSTEM_ERROR),
+            "code": business_code,
             "message": exc.detail,
             "data": None,
         },
