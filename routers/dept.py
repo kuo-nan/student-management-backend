@@ -1,6 +1,7 @@
 """班级的新增和分页查询接口。（只有管理员有权操作）"""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -17,15 +18,18 @@ def add_dept(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    #预查询用于尽早提示重名
-    #注意：当前dept_name没有数据库唯一约束，因此预查询不能完全防止并发创建两个同名班级
+    # 预查询用于尽早提示重名，数据库唯一约束负责处理并发兜底。
     if db.scalar(select(Dept.id).where(Dept.dept_name == dept.dept_name)):
         raise HTTPException(status_code=409, detail="班级名称已存在")
     #model_dump将DeptCreate的请求字段转换成Dept构造参数
     db_dept = Dept(**dept.model_dump())
     #add 将对象放进Session,commit才会实际写入数据库
     db.add(db_dept)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="班级名称已存在") from None
     #refresh获取数据库生成的自增ID
     db.refresh(db_dept)
     #操作日志在业务数据提交后单独写入，日志失败不会撤销班级创建

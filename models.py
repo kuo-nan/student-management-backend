@@ -47,6 +47,7 @@ teacher_dept = Table(
 #====班级表====
 class Dept(Base):
     __tablename__ = "dept"
+    __table_args__ = (UniqueConstraint("dept_name", name="uk_dept_name"),)
 
     id = Column(Integer, primary_key=True)
     dept_name = Column(String(20), nullable=False)
@@ -77,6 +78,7 @@ class Student(Base):
 #====课程表====
 class Course(Base):
     __tablename__ = "course"
+    __table_args__ = (UniqueConstraint("course_name", name="uk_course_name"),)
 
     id = Column(Integer, primary_key=True)
     course_name = Column(String(20), nullable=False)

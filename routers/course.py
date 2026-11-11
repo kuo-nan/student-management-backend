@@ -4,6 +4,7 @@ from io import BytesIO
 import openpyxl
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -25,10 +26,17 @@ def create_course(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    #当前Course表没有课程名称唯一约束，此处也没有名称预检查，因此系统允许创建同名课程
+    # 预查询用于尽早提示重名，数据库唯一约束负责处理并发兜底。
+    if db.scalar(select(Course.id).where(Course.course_name == course.course_name)):
+        raise HTTPException(status_code=409, detail="课程名称已存在")
+
     db_course = Course(**course.model_dump())
     db.add(db_course)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="课程名称已存在") from None
     #commit后refresh，返回数据库生成的自增ID
     db.refresh(db_course)
     add_operation_log(
@@ -115,9 +123,13 @@ def import_course_excel(
         except (IndexError, TypeError, ValueError) as exc:
             fail_list.append(f"第{row_idx}行：{exc}")
 
-    #所以合法课程统一add_all，再通过一次commit写入
+    # 所有合法课程统一提交；并发重名由数据库唯一约束兜底。
     db.add_all(course_list)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="课程名称已存在") from None
     #操作日志只有才导入commit成功后才写入
     add_operation_log(
         db,
@@ -126,8 +138,6 @@ def import_course_excel(
         "批量导入",
         f"导入课程：成功 {len(course_list)} 条，失败 {len(fail_list)} 条",
     )
-    #当前代码没有专门捕获IntegrityError
-    #如果数据库抛出约束错误，会由main.py的SQLAlchemyError处理器返回500
     return ResponseModel.success(
         data={
             "success_count": len(course_list),

@@ -6,10 +6,11 @@ from threading import Barrier
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from database import Base
-from models import Dept, Student, StudentLeave
+from models import Course, Dept, Student, StudentLeave
 from schemas import LeaveAudit, StudentCreate
 from services.leave_service import audit_leave, cancel_leave
 from services.student_service import create_student
@@ -205,3 +206,57 @@ def test_concurrent_leave_audit_and_cancel_only_allows_one_winner(
             assert saved.status == "approved"
         else:
             assert saved is None
+
+
+def test_concurrent_course_and_dept_names_only_allow_one_winner(
+    mysql_session_factory,
+):
+    dept_barrier = Barrier(2)
+
+    def create_dept() -> str:
+        with mysql_session_factory() as db:
+            dept_barrier.wait(timeout=5)
+            try:
+                db.add(Dept(dept_name="并发唯一班级"))
+                db.commit()
+                return "success"
+            except IntegrityError:
+                db.rollback()
+                return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        dept_results = list(executor.map(lambda _: create_dept(), range(2)))
+
+    assert sorted(dept_results) == ["conflict", "success"]
+
+    course_barrier = Barrier(2)
+
+    def create_course() -> str:
+        with mysql_session_factory() as db:
+            course_barrier.wait(timeout=5)
+            try:
+                db.add(Course(course_name="并发唯一课程", credits=3))
+                db.commit()
+                return "success"
+            except IntegrityError:
+                db.rollback()
+                return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        course_results = list(executor.map(lambda _: create_course(), range(2)))
+
+    assert sorted(course_results) == ["conflict", "success"]
+
+    with mysql_session_factory() as db:
+        dept_count = db.scalar(
+            select(func.count())
+            .select_from(Dept)
+            .where(Dept.dept_name == "并发唯一班级")
+        )
+        course_count = db.scalar(
+            select(func.count())
+            .select_from(Course)
+            .where(Course.course_name == "并发唯一课程")
+        )
+        assert dept_count == 1
+        assert course_count == 1

@@ -145,6 +145,42 @@ def test_exam_name_is_unique(
     assert second.status_code == 400
 
 
+def test_course_and_dept_names_are_unique(
+    client: TestClient,
+    admin_headers: dict[str, str],
+):
+    dept_payload = {"dept_name": "唯一班级测试"}
+    first_dept = client.post(
+        "/dept/dept",
+        json=dept_payload,
+        headers=admin_headers,
+    )
+    duplicate_dept = client.post(
+        "/dept/dept",
+        json=dept_payload,
+        headers=admin_headers,
+    )
+
+    course_payload = {"course_name": "唯一课程测试", "credits": 3}
+    first_course = client.post(
+        "/course/add_course",
+        json=course_payload,
+        headers=admin_headers,
+    )
+    duplicate_course = client.post(
+        "/course/add_course",
+        json=course_payload,
+        headers=admin_headers,
+    )
+
+    assert first_dept.status_code == 200, first_dept.text
+    assert duplicate_dept.status_code == 409
+    assert duplicate_dept.json()["code"] == 40901
+    assert first_course.status_code == 200, first_course.text
+    assert duplicate_course.status_code == 409
+    assert duplicate_course.json()["code"] == 40901
+
+
 def test_student_leave_uses_linked_student_identity(
     client: TestClient,
     student_headers: dict[str, str],
