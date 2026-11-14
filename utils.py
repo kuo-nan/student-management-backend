@@ -20,6 +20,16 @@ from schemas import PageResult
 
 T = TypeVar("T")
 _redis_retry_after = 0.0
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = 60
+
+# Redis 会原子执行整个 Lua 脚本，避免 INCR 成功但 EXPIRE 失败。
+LOGIN_RATE_LIMIT_SCRIPT = """
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+    redis.call("EXPIRE", KEYS[1], ARGV[1])
+end
+return count
+"""
 
 #===========分页=============
 def paginate(db: Session, base_stmt, page: int, page_size: int) -> PageResult[T]:
@@ -137,12 +147,13 @@ def enforce_login_rate_limit(request: Request, limit: int = 10) -> None:
     client_ip = request.client.host if request.client else "unknown"
     rate_key = f"rate:login:{client_ip}"
     try:
-        # incr是原子自增，并发请求不会出现先读后写导致少计数
-        count = redis_client.incr(rate_key)
-        # 只在计数从0变成1 时设置60秒有效期
-        # 避免每次登录都续期，导致窗口永远无法结束
-        if count == 1:
-            redis_client.expire(rate_key, 60)#60秒后删除计数
+        # Lua 脚本原子完成计数；只在第一次请求时设置固定窗口 TTL。
+        count = redis_client.eval(
+            LOGIN_RATE_LIMIT_SCRIPT,
+            1,
+            rate_key,
+            LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+        )
     # 如果Redis故障时暂时跳过限流，优先保证登录功能可用
     except RedisError:
         _redis_retry_after = time.monotonic() + 30

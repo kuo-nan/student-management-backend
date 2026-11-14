@@ -1,7 +1,12 @@
 from io import BytesIO
+from types import SimpleNamespace
 
 import openpyxl
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
+
+import utils
 
 
 def test_health_check(client: TestClient):
@@ -9,6 +14,31 @@ def test_health_check(client: TestClient):
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_login_rate_limit_uses_atomic_lua_script(monkeypatch):
+    captured: dict = {}
+
+    class FakeRedis:
+        def eval(self, script, numkeys, *keys_and_args):
+            captured["script"] = script
+            captured["numkeys"] = numkeys
+            captured["keys_and_args"] = keys_and_args
+            return 11
+
+    monkeypatch.setattr(utils, "redis_client", FakeRedis())
+    monkeypatch.setattr(utils, "_redis_retry_after", 0.0)
+
+    request = SimpleNamespace(client=SimpleNamespace(host="203.0.113.10"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        utils.enforce_login_rate_limit(request)
+
+    assert exc_info.value.status_code == 429
+    assert captured["numkeys"] == 1
+    assert captured["keys_and_args"] == ("rate:login:203.0.113.10", 60)
+    assert "INCR" in captured["script"]
+    assert "EXPIRE" in captured["script"]
 
 
 def test_student_list_requires_login(client: TestClient):
