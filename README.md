@@ -226,11 +226,6 @@ pytest tests/test_mysql_concurrency.py
 └── .github/workflows/ci.yml
 ```
 
-## 演示与求职材料
-
-- [三分钟项目演示脚本](DEMO.md)
-- [简历项目描述参考](RESUME_BULLETS.md)
-
 ## 已知限制
 
 - 课程最终成绩与考试明细之间的权重和换算规则尚未实现。
