@@ -230,4 +230,4 @@ pytest tests/test_mysql_concurrency.py
 
 - 课程最终成绩与考试明细之间的权重和换算规则尚未实现。
 - 文件当前保存到本地磁盘或 Docker Volume，生产环境应迁移到对象存储。
-- 暂不租用公网服务器，项目通过本地 Docker 环境和演示视频展示。
+- 暂不租用公网服务器，项目通过本地 Docker 环境展示。
